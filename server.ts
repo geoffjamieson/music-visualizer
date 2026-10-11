@@ -1,4 +1,5 @@
 import { createServer } from "node:net";
+import { readFileSync } from "node:fs";
 import { styleText } from "node:util";
 
 const server = createServer((socket) => {
@@ -18,14 +19,23 @@ const server = createServer((socket) => {
 
     let status: string;
     let body: string;
+    let filePath: string;
 
     if (path === "/") {
-      status = "200 OK";
-      body = "<h1>Homepage</h1>";
-    } else if (path === "/hello") {
-      status = "200 OK";
-      body = "<h1>Hello 👋</h1>";
+      // '/' → 'public/index.html'
+      filePath = "public/index.html";
+    } else if (path.includes(".")) {
+      // '/style.css' → 'public/style.css'
+      filePath = `public${path}`;
     } else {
+      // '/about' → 'public/about.html'
+      filePath = `public${path}.html`;
+    }
+
+    try {
+      status = "200 OK";
+      body = readFileSync(filePath, "utf-8");
+    } catch (error) {
       status = "404 Not Found";
       body = "<h1>404: Nothing here</h1>";
     }
