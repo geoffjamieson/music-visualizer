@@ -6,6 +6,15 @@ import { styleText } from "node:util";
 const contentTypes: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
+  ".js": "text/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
 };
 
 const publicDir = resolve(import.meta.dirname, "public");
@@ -26,7 +35,7 @@ const server = createServer((socket) => {
     console.log(styleText("gray", request));
 
     let status: string;
-    let body: string;
+    let body: Buffer;
     let contentType: string;
     let filePath: string;
 
@@ -46,29 +55,30 @@ const server = createServer((socket) => {
     // Refuse any path that ends up outside the public folder.
     if (!filePath.startsWith(publicDir + sep)) {
       status = "403 Forbidden";
-      body = "<h1>403: Not allowed</h1>";
+      body = Buffer.from("<h1>403: Not allowed</h1>");
       contentType = contentTypes[".html"];
     } else {
       try {
         status = "200 OK";
-        body = readFileSync(filePath, "utf-8");
+        body = readFileSync(filePath);
         contentType =
           contentTypes[extname(filePath)] ?? "application/octet-stream";
       } catch (error) {
         status = "404 Not Found";
-        body = "<h1>404: Nothing here</h1>";
+        body = Buffer.from("<h1>404: Nothing here</h1>");
         contentType = contentTypes[".html"];
       }
     }
 
-    const response =
+    const headers =
       `HTTP/1.1 ${status}\r\n` +
       `Content-Type: ${contentType}\r\n` +
-      `Content-Length: ${Buffer.byteLength(body)}\r\n` +
-      "\r\n" +
-      body;
+      `Content-Length: ${body.length}\r\n` +
+      "\r\n";
 
-    socket.write(response);
+    console.log(styleText("yellow", `→ ${status}`));
+    socket.write(headers);
+    socket.write(body);
     socket.end();
   });
 });
