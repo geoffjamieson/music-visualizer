@@ -2,6 +2,7 @@ import { createServer } from "node:net";
 import { readFileSync } from "node:fs";
 import { extname, resolve, sep } from "node:path";
 import { styleText } from "node:util";
+import { logRequest } from "./src/logger.ts";
 
 // File extension → Content-Type label sent to the browser.
 const contentTypes: Record<string, string> = {
@@ -17,17 +18,6 @@ const contentTypes: Record<string, string> = {
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".mp3": "audio/mpeg",
-};
-
-// Any color name styleText accepts.
-type Color = Parameters<typeof styleText>[0];
-
-// First digit of the status code → log color (2xx ok, 3xx redirect, 4xx bad request, 5xx server error).
-const statusColors: Record<string, Color> = {
-  "2": "green",
-  "3": "cyan",
-  "4": "yellow",
-  "5": "red",
 };
 
 // Absolute path to the folder we serve files from.
@@ -146,9 +136,7 @@ const server = createServer((socket) => {
     // Blank line = end of headers. Must come last, after every header.
     headers += "\r\n";
 
-    // Log one colored line per request, e.g. 'GET /FML.mp3 -> 206 Partial Content'.
-    const statusColor = statusColors[status[0]] ?? "white";
-    console.log(styleText(statusColor, `${method} ${path} -> ${status}`));
+    logRequest(method, path, status);
 
     // Headers go out as text, the body as raw bytes, then close the connection.
     socket.write(headers);
