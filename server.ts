@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { extname, resolve, sep } from "node:path";
 import { styleText } from "node:util";
 import { logRequest } from "./src/logger.ts";
+import { parseRange } from "./src/request.ts";
 
 // File extension → Content-Type label sent to the browser.
 const contentTypes: Record<string, string> = {
@@ -44,22 +45,11 @@ const server = createServer((socket) => {
     const [method, path, version] = firstLine.split(" ");
 
     // Range header, if any: 'Range: bytes=1000000-'
-    const rangeLine = lines.find((line) => {
+    const rangeHeader = lines.find((line) => {
       return line.startsWith("Range");
     });
 
-    // Byte positions the client asked for. Both stay undefined without a Range header.
-    let start: number | undefined;
-    let end: number | undefined;
-
-    if (rangeLine) {
-      // 'Range: bytes=1000000-' → '1000000-' → start '1000000', end ''
-      const [, byteRange] = rangeLine.split("=");
-      const [startingBytes, endingBytes] = byteRange.split("-");
-      start = Number(startingBytes);
-      // An empty end means "to the end of the file" (Number("") would wrongly give 0).
-      end = endingBytes === "" ? undefined : Number(endingBytes);
-    }
+    const range = parseRange(rangeHeader);
 
     // ---- Build the response ----
 
@@ -94,14 +84,15 @@ const server = createServer((socket) => {
         contentType =
           contentTypes[extname(filePath)] ?? "application/octet-stream";
 
-        // Range requested (start is set): send only those bytes as 206 Partial Content.
+        // Range requested: send only those bytes as 206 Partial Content.
         // Works for any file type; browsers just use it mostly for audio and video.
         // No Range header: send the whole file as 200 OK.
-        if (start !== undefined) {
+        if (range) {
           status = "206 Partial Content";
 
           // No end given → go to the last byte (positions start at 0).
-          end = end ?? file.length - 1;
+          const start = range.start;
+          const end = range.end ?? file.length - 1;
 
           // subarray stops *before* its second argument, so +1 keeps the last byte.
           body = file.subarray(start, end + 1);
