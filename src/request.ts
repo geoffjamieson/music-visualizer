@@ -1,5 +1,7 @@
-// Turn raw request text into { method, path, version, headers }.
-// Header names are lowercased, so 'Range' is found as headers.range.
+/**
+ * Turn raw request text into { method, path, version, headers }.
+ * Header names are lowercased, so 'Range' is found as headers.range.
+ */
 export function parseRequest(request: string) {
   const lines = request.split("\r\n");
 
@@ -24,8 +26,10 @@ export function parseRequest(request: string) {
   return { method, path, version, headers };
 }
 
-// Turn a Range header value like 'bytes=1000000-' into { start, end }.
-// Returns undefined when there's no Range header.
+/**
+ * Turn a Range header value like 'bytes=1000000-' into { start, end }.
+ * Returns undefined when there's no Range header.
+ */
 export function parseRange(rangeHeader: string | undefined) {
   if (!rangeHeader) {
     return undefined;

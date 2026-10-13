@@ -1,9 +1,9 @@
 import { styleText } from "node:util";
 
-// Any color name styleText accepts.
+/** Any color or style name that `styleText` accepts, e.g. "green" or "bold". */
 type Color = Parameters<typeof styleText>[0];
 
-// First digit of the status code → log color (2xx ok, 3xx redirect, 4xx bad request, 5xx server error).
+/** Log color for each status, keyed by the first digit of its code ("2" → 2xx). */
 const statusColors: Record<string, Color> = {
   "2": "green",
   "3": "cyan",
@@ -11,7 +11,7 @@ const statusColors: Record<string, Color> = {
   "5": "red",
 };
 
-// Log one colored line per request, e.g. 'GET /FML.mp3 -> 206 Partial Content'.
+/** Print one colored line per request, e.g. 'GET /song.mp3 -> 206 Partial Content'. */
 export function logRequest(method: string, path: string, status: string) {
   const statusColor = statusColors[status[0]] ?? "white";
   console.log(styleText(statusColor, `${method} ${path} -> ${status}`));

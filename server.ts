@@ -1,9 +1,10 @@
 import { createServer } from "node:net";
 import { readFileSync } from "node:fs";
-import { extname, resolve, sep } from "node:path";
+import { extname } from "node:path";
 import { styleText } from "node:util";
 import { logRequest } from "./src/logger.ts";
 import { parseRange, parseRequest } from "./src/request.ts";
+import { resolvePublicPath } from "./src/static-files.ts";
 
 // File extension → Content-Type label sent to the browser.
 const contentTypes: Record<string, string> = {
@@ -20,9 +21,6 @@ const contentTypes: Record<string, string> = {
   ".json": "application/json; charset=utf-8",
   ".mp3": "audio/mpeg",
 };
-
-// Absolute path to the folder we serve files from.
-const publicDir = resolve(import.meta.dirname, "public");
 
 const server = createServer((socket) => {
   // Handle errors on this connection so one broken connection can't crash the whole server.
@@ -48,23 +46,11 @@ const server = createServer((socket) => {
     let body: Buffer;
     let contentType: string;
     let contentRange: string | undefined; // only set for 206 responses
-    let filePath: string;
 
-    // Turn the URL path into a full file path inside public.
-    // The "." makes the path relative, so resolve keeps publicDir in front.
-    if (path === "/") {
-      // '/' → 'public/index.html'
-      filePath = resolve(publicDir, "index.html");
-    } else if (path.includes(".")) {
-      // '/style.css' → 'public/style.css'
-      filePath = resolve(publicDir, `.${path}`);
-    } else {
-      // '/about' → 'public/about.html'
-      filePath = resolve(publicDir, `.${path}.html`);
-    }
+    const filePath = resolvePublicPath(path);
 
-    // Refuse any path that ends up outside the public folder (e.g. '/../server.ts').
-    if (!filePath.startsWith(publicDir + sep)) {
+    // No safe path means the request tried to escape the public folder.
+    if (!filePath) {
       status = "403 Forbidden";
       body = Buffer.from("<h1>403: Not allowed</h1>");
       contentType = contentTypes[".html"];
