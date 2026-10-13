@@ -15,7 +15,7 @@ export function parseRequest(request: string) {
   for (const line of lines.slice(1)) {
     if (line === "") break;
 
-    // split at the FIRST ': ' only. Values can contain colons, e.g. 'Host: localhost:3000'
+    // Split at the FIRST ': ' only. Values can contain colons, e.g. 'Host: localhost:3000'
     const separator = line.indexOf(": ");
     const name = line.slice(0, separator).toLowerCase();
     const value = line.slice(separator + 2);
