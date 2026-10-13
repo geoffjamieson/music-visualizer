@@ -1,9 +1,13 @@
 import { createServer } from "node:net";
 import { styleText } from "node:util";
-import { logRequest } from "./src/logger.ts";
 import { parseRange, parseRequest } from "./src/request.ts";
 import { createFileResponse, resolvePublicPath } from "./src/static-files.ts";
-import { htmlResponse, type HttpResponse } from "./src/response.ts";
+import {
+  htmlResponse,
+  sendResponse,
+  type HttpResponse,
+} from "./src/response.ts";
+import { logRequest } from "./src/logger.ts";
 
 const server = createServer((socket) => {
   // Handle errors on this connection so one broken connection can't crash the whole server.
@@ -38,27 +42,8 @@ const server = createServer((socket) => {
 
     // ---- Send the response ----
 
-    // Status line and headers, each ending in \r\n.
-    // Accept-Ranges tells the browser it may ask for parts of files (enables seeking).
-    let responseHeaders =
-      `HTTP/1.1 ${response.status}\r\n` +
-      `Content-Type: ${response.contentType}\r\n` +
-      `Content-Length: ${response.body.length}\r\n` +
-      "Accept-Ranges: bytes\r\n";
-
-    if (response.contentRange) {
-      responseHeaders += `Content-Range: ${response.contentRange}\r\n`;
-    }
-
-    // Blank line = end of headers. Must come last, after every header.
-    responseHeaders += "\r\n";
-
     logRequest(method, path, response.status);
-
-    // Headers go out as text, the body as raw bytes, then close the connection.
-    socket.write(responseHeaders);
-    socket.write(response.body);
-    socket.end();
+    sendResponse(socket, response);
   });
 });
 
