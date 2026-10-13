@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { extname, resolve, sep } from "node:path";
 import { styleText } from "node:util";
 import { logRequest } from "./src/logger.ts";
-import { parseRange } from "./src/request.ts";
+import { parseRange, parseRequest } from "./src/request.ts";
 
 // File extension → Content-Type label sent to the browser.
 const contentTypes: Record<string, string> = {
@@ -36,23 +36,14 @@ const server = createServer((socket) => {
   socket.on("data", (data) => {
     // ---- Parse the request ----
 
-    // The raw request is one big string; split it into lines.
+    // Turn the raw request text into method, path and headers.
     const request = data.toString();
-    const lines = request.split("\r\n");
+    const { method, path, headers } = parseRequest(request);
 
-    // First line: 'GET /song.mp3 HTTP/1.1' → method, path, version.
-    const firstLine = lines[0];
-    const [method, path, version] = firstLine.split(" ");
-
-    // Range header, if any: 'Range: bytes=1000000-'
-    const rangeHeader = lines.find((line) => {
-      return line.startsWith("Range");
-    });
-
-    const range = parseRange(rangeHeader);
+    // Byte range the client asked for, or undefined if it wants the whole file.
+    const range = parseRange(headers.range);
 
     // ---- Build the response ----
-
     let status: string;
     let body: Buffer;
     let contentType: string;
@@ -114,23 +105,23 @@ const server = createServer((socket) => {
 
     // Status line and headers, each ending in \r\n.
     // Accept-Ranges tells the browser it may ask for parts of files (enables seeking).
-    let headers =
+    let responseHeaders =
       `HTTP/1.1 ${status}\r\n` +
       `Content-Type: ${contentType}\r\n` +
       `Content-Length: ${body.length}\r\n` +
       "Accept-Ranges: bytes\r\n";
 
     if (contentRange) {
-      headers += `Content-Range: ${contentRange}\r\n`;
+      responseHeaders += `Content-Range: ${contentRange}\r\n`;
     }
 
     // Blank line = end of headers. Must come last, after every header.
-    headers += "\r\n";
+    responseHeaders += "\r\n";
 
     logRequest(method, path, status);
 
     // Headers go out as text, the body as raw bytes, then close the connection.
-    socket.write(headers);
+    socket.write(responseHeaders);
     socket.write(body);
     socket.end();
   });
