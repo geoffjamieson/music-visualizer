@@ -4,7 +4,7 @@ import { parseRange } from "./request.ts";
 import { htmlResponse, type HttpResponse } from "./response.ts";
 
 /** Absolute path to the folder we serve files from (one level up from src/). */
-const publicDir = resolve(import.meta.dirname, "..", "public");
+export const publicDir = resolve(import.meta.dirname, "..", "public");
 
 /** File extension → Content-Type label sent to the browser. */
 const contentTypes: Record<string, string> = {
@@ -21,6 +21,14 @@ const contentTypes: Record<string, string> = {
   ".json": "application/json; charset=utf-8",
   ".mp3": "audio/mpeg",
 };
+
+/** Injected into every HTML page so it reloads when a file in public/ changes. */
+const reloadScript = `
+    <script>
+      const events = new EventSource("/events");
+      events.addEventListener("message", () => location.reload());
+    </script>
+`;
 
 /**
  * Turn a URL path into a full file path inside the public folder.
@@ -58,7 +66,14 @@ export function createFileResponse(
   range: ReturnType<typeof parseRange>,
 ): HttpResponse {
   try {
-    const file = readFileSync(filePath);
+    let file = readFileSync(filePath);
+
+    // HTML pages get the reload script added before </body>.
+    if (extname(filePath) === ".html") {
+      const html = file.toString();
+      const withScript = html.replace("</body>", `${reloadScript}</body>`);
+      file = Buffer.from(withScript);
+    }
 
     const contentType =
       contentTypes[extname(filePath)] ?? "application/octet-stream";

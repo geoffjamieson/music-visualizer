@@ -1,13 +1,28 @@
-import { createServer } from "node:net";
+import { createServer, type Socket } from "node:net";
 import { styleText } from "node:util";
+import { watch } from "node:fs";
 import { parseRange, parseRequest } from "./src/request.ts";
-import { createFileResponse, resolvePublicPath } from "./src/static-files.ts";
+import {
+  createFileResponse,
+  resolvePublicPath,
+  publicDir,
+} from "./src/static-files.ts";
 import {
   htmlResponse,
   sendResponse,
   type HttpResponse,
 } from "./src/response.ts";
 import { logRequest } from "./src/logger.ts";
+
+/** Sockets with an open /events connection, waiting for reload messages. */
+const reloadClients = new Set<Socket>();
+
+// When anything in public/ changes, tell every open page to reload.
+watch(publicDir, () => {
+  for (const socket of reloadClients) {
+    socket.write("data: reload\n\n");
+  }
+});
 
 const server = createServer((socket) => {
   // Handle errors on this connection so one broken connection can't crash the whole server.
@@ -30,6 +45,26 @@ const server = createServer((socket) => {
 
     // ---- Build the response ----
     let response: HttpResponse;
+
+    // Live reload: keep this connection open and send reload messages down it later.
+    if (path === "/events") {
+      const responseHeaders =
+        "HTTP/1.1 200 OK\r\n" +
+        "Content-Type: text/event-stream\r\n" +
+        "Cache-Control: no-cache\r\n" +
+        "\r\n";
+      logRequest(method, path, "200 OK");
+      socket.write(responseHeaders);
+
+      // Remember this connection so the watcher can message it later.
+      reloadClients.add(socket);
+
+      // Forget it when the browser disconnects (tab closed, page reloaded).
+      socket.on("close", () => reloadClients.delete(socket));
+
+      // Stop here: no body and no socket.end(), so the connection stays open.
+      return;
+    }
 
     const filePath = resolvePublicPath(path);
 
