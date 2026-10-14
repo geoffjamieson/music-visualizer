@@ -17,11 +17,17 @@ import { logRequest } from "./src/logger.ts";
 /** Sockets with an open /events connection, waiting for reload messages. */
 const reloadClients = new Set<Socket>();
 
+// Timer for the pending reload, so a burst of events sends only one.
+let reloadTimer: ReturnType<typeof setTimeout> | undefined;
+
 // When anything in public/ changes, tell every open page to reload.
 watch(publicDir, () => {
-  for (const socket of reloadClients) {
-    socket.write("data: reload\n\n");
-  }
+  clearTimeout(reloadTimer);
+  reloadTimer = setTimeout(() => {
+    for (const socket of reloadClients) {
+      socket.write("data: reload\n\n");
+    }
+  }, 100);
 });
 
 const server = createServer((socket) => {
