@@ -1,5 +1,5 @@
 import { resolve, sep, extname } from "node:path";
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync, createReadStream } from "node:fs";
 import { parseRange } from "./request.ts";
 import { htmlResponse, type HttpResponse } from "./response.ts";
 
@@ -58,44 +58,61 @@ export function resolvePublicPath(path: string) {
 }
 
 /**
- * Read a file and build its response: 206 if a range was asked for, 200 otherwise.
- * Returns a 404 page if the file can't be read.
+ * Build a file's response: 206 if a range was asked for, 200 otherwise.
+ * HTML is read whole (to inject the reload script); everything else is streamed.
+ * Returns a 404 page if the file can't be found.
  */
 export function createFileResponse(
   filePath: string,
   range: ReturnType<typeof parseRange>,
 ): HttpResponse {
   try {
-    let file = readFileSync(filePath);
-
-    // HTML pages get the reload script added before </body>.
-    if (extname(filePath) === ".html") {
-      const html = file.toString();
-      const withScript = html.replace("</body>", `${reloadScript}</body>`);
-      file = Buffer.from(withScript);
-    }
-
     const contentType =
       contentTypes[extname(filePath)] ?? "application/octet-stream";
+
+    // HTML: read the whole page so the reload script can be injected.
+    if (extname(filePath) === ".html") {
+      const html = readFileSync(filePath).toString();
+      const body = Buffer.from(
+        html.replace("</body>", `${reloadScript}</body>`),
+      );
+
+      return {
+        status: "200 OK",
+        contentType,
+        body,
+        contentLength: body.length,
+      };
+    }
+
+    // Everything else gets streamed: get the size without reading the file.
+    const fileSize = statSync(filePath).size;
 
     // Range requested → send only those bytes (browsers do this for audio and video).
     if (range) {
       // No end given → go to the last byte (positions start at 0).
       const start = range.start;
-      const end = range.end ?? file.length - 1;
+      const end = range.end ?? fileSize - 1;
 
       return {
         status: "206 Partial Content",
         contentType,
-        // subarray stops *before* its second argument, so +1 keeps the last byte.
-        body: file.subarray(start, end + 1),
+        // Reads only these bytes. Its end is inclusive, like HTTP ranges, so no +1.
+        body: createReadStream(filePath, { start, end }),
         // Which bytes these are, out of the total: 'bytes 1000000-2578611/2578612'
-        contentRange: `bytes ${start}-${end}/${file.length}`,
+        contentRange: `bytes ${start}-${end}/${fileSize}`,
+        // Both ends count: bytes 0-99 is 100 bytes.
+        contentLength: end - start + 1,
       };
     }
 
     // No range → send the whole file.
-    return { status: "200 OK", contentType, body: file };
+    return {
+      status: "200 OK",
+      contentType,
+      body: createReadStream(filePath),
+      contentLength: fileSize,
+    };
   } catch {
     return htmlResponse("404 Not Found", "<h1>404: Nothing here</h1>");
   }
