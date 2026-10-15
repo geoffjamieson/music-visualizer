@@ -13,7 +13,7 @@ Work in progress. The plan, in milestones:
    - ✅ Refactor into `src/` modules (request parsing, static files, responses, logging)
    - ✅ Live reload with Server-Sent Events
    - ✅ Stream files with `createReadStream` instead of reading them whole
-   - ⬜ `416 Range Not Satisfiable` for ranges past the end of a file
+   - ✅ `416 Range Not Satisfiable` for ranges past the end of a file
 3. **Music API.** Next: a `/api/songs` endpoint that lists a music folder as JSON, shown as a playlist.
 4. **The visualizer.** Web Audio analysis driving bars, meters and readouts, with a look inspired by 2000s music gadgets. Ideas are collected in [IDEAS.md](IDEAS.md).
 

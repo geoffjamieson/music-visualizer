@@ -90,9 +90,26 @@ export function createFileResponse(
 
     // Range requested → send only those bytes (browsers do this for audio and video).
     if (range) {
-      // No end given → go to the last byte (positions start at 0).
       const start = range.start;
-      const end = range.end ?? fileSize - 1;
+
+      // Starts past the last byte: nothing to send. Tell the client the real size.
+      if (start >= fileSize) {
+        return {
+          ...htmlResponse(
+            "416 Range Not Satisfiable",
+            "<h1>416: Range not satisfiable</h1>",
+          ),
+          contentRange: `bytes */${fileSize}`,
+        };
+      }
+
+      const lastByte = fileSize - 1;
+
+      // No end given → go to the last byte.
+      const requestedEnd = range.end ?? lastByte;
+
+      // Never past the last byte, even if the client asks for more.
+      const end = Math.min(requestedEnd, lastByte);
 
       return {
         status: "206 Partial Content",
