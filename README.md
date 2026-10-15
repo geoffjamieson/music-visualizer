@@ -14,10 +14,21 @@ Work in progress. The plan, in milestones:
    - ✅ Live reload with Server-Sent Events
    - ✅ Stream files with `createReadStream` instead of reading them whole
    - ✅ `416 Range Not Satisfiable` for ranges past the end of a file
-3. **Music API.** Next: a `/api/songs` endpoint that lists a music folder as JSON, shown as a playlist.
-4. **The visualizer.** Web Audio analysis driving bars, meters and readouts, with a look inspired by 2000s music gadgets. Ideas are collected in [IDEAS.md](IDEAS.md).
+3. **Music library.** Next:
+   - First-run setup: ask where the music folder is, save it to a config file (`MUSIC_DIR` as a developer override)
+   - Stream songs from that folder, with the same path-safety check as `public/`
+   - `/api/songs`: list the library as JSON (recursively, through artist/album folders)
+   - Read titles, artists, albums etc. from the files' ID3 tags, parsed by hand
+   - A plain playlist page: one flat list sorted by artist, album and track; play, pause, seek, next, previous
+   - Small extras: shuffle and repeat
+4. **The visualizer.** Web Audio analysis driving bars, meters and readouts, with a look inspired by 2000s music gadgets (think Winamp with its Milkdrop visualizer). Optional: a Winamp-style 10-band EQ. Ideas are collected in [IDEAS.md](IDEAS.md).
+5. **Make it an app.** Wrap it in Electron: its own window, and a native folder picker for the music library.
 
 Later: a multiplayer game over hand-written WebSockets, at which point the server gets pulled out into its own small framework.
+
+## Scope
+
+A visualizer that can play music, not a music library manager. In scope: pointing at a music folder, listing songs, basic playback controls, and the visualizer. Out of scope (that's what Swinsian is for): saved playlists, ratings, play counts, search, tag editing, album art browsing, organising the library.
 
 ## Running it
 
