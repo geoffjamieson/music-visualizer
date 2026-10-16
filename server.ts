@@ -28,7 +28,51 @@ watch(publicDir, () => {
   }, 100);
 });
 
+function handleRequest(socket: Socket, request: string) {
+  const { method, path, headers } = parseRequest(request);
+
+  const range = parseRange(headers.range);
+
+  let response: HttpResponse;
+
+  // Live reload: keep this connection open and send reload messages down it later.
+  if (path === "/events") {
+    const responseHeaders =
+      "HTTP/1.1 200 OK\r\n" +
+      "Content-Type: text/event-stream\r\n" +
+      "Cache-Control: no-cache\r\n" +
+      "\r\n";
+    logRequest(method, path, "200 OK");
+    socket.write(responseHeaders);
+
+    // Remember this connection so the watcher can message it later.
+    reloadClients.add(socket);
+
+    // Forget it when the browser disconnects (tab closed, page reloaded).
+    socket.on("close", () => reloadClients.delete(socket));
+
+    // Stop here: no body and no socket.end(), so the connection stays open.
+    return;
+  }
+
+  const filePath = resolvePublicPath(path);
+
+  // No safe path means the request tried to escape the public folder.
+  if (!filePath) {
+    response = htmlResponse("403 Forbidden", "<h1>403: Not allowed</h1>");
+  } else {
+    response = createFileResponse(filePath, range);
+  }
+
+  logRequest(method, path, response.status);
+  sendResponse(socket, response);
+}
+
 const server = createServer((socket) => {
+  // Bytes received on this connection that haven't been handled yet.
+  // A request can arrive in several pieces, so they're collected here.
+  let received = Buffer.alloc(0);
+
   // Without this, one broken connection crashes the server.
   // EPIPE / ECONNRESET = the browser hung up early, which is normal.
   socket.on("error", (error: NodeJS.ErrnoException) => {
@@ -36,45 +80,23 @@ const server = createServer((socket) => {
     console.log(styleText("red", `connection error: ${error.message}`));
   });
 
-  socket.on("data", (data) => {
-    const request = data.toString();
-    const { method, path, headers } = parseRequest(request);
+  socket.on("data", (data: Buffer) => {
+    received = Buffer.concat([received, data]);
 
-    const range = parseRange(headers.range);
+    // No blank line yet: the headers aren't complete, so wait for more.
+    const headersEnd = received.indexOf("\r\n\r\n");
+    if (headersEnd === -1) return;
 
-    let response: HttpResponse;
+    // How many body bytes to expect (0 if there's no body, like a GET).
+    const { headers } = parseRequest(received.toString());
+    const contentLength = Number(headers["content-length"] ?? 0);
+    const bodyStart = headersEnd + 4;
 
-    // Live reload: keep this connection open and send reload messages down it later.
-    if (path === "/events") {
-      const responseHeaders =
-        "HTTP/1.1 200 OK\r\n" +
-        "Content-Type: text/event-stream\r\n" +
-        "Cache-Control: no-cache\r\n" +
-        "\r\n";
-      logRequest(method, path, "200 OK");
-      socket.write(responseHeaders);
+    // Body bytes so far vs. promised. Fewer: the rest is still on its way, so wait.
+    if (received.length - bodyStart < contentLength) return;
 
-      // Remember this connection so the watcher can message it later.
-      reloadClients.add(socket);
-
-      // Forget it when the browser disconnects (tab closed, page reloaded).
-      socket.on("close", () => reloadClients.delete(socket));
-
-      // Stop here: no body and no socket.end(), so the connection stays open.
-      return;
-    }
-
-    const filePath = resolvePublicPath(path);
-
-    // No safe path means the request tried to escape the public folder.
-    if (!filePath) {
-      response = htmlResponse("403 Forbidden", "<h1>403: Not allowed</h1>");
-    } else {
-      response = createFileResponse(filePath, range);
-    }
-
-    logRequest(method, path, response.status);
-    sendResponse(socket, response);
+    handleRequest(socket, received.toString());
+    received = Buffer.alloc(0);
   });
 });
 

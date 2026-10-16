@@ -1,5 +1,5 @@
 /**
- * Turn raw request text into { method, path, version, headers }.
+ * Turn raw request text into { method, path, version, headers, body }.
  * Header names are lowercased, so 'Range' is found as headers.range.
  */
 export function parseRequest(request: string) {
@@ -23,7 +23,10 @@ export function parseRequest(request: string) {
     headers[name] = value;
   }
 
-  return { method, path, version, headers };
+  const headersEnd = request.indexOf("\r\n\r\n");
+  const body = request.slice(headersEnd + 4);
+
+  return { method, path, version, headers, body };
 }
 
 /**
