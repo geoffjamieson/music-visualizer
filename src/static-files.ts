@@ -6,7 +6,6 @@ import { htmlResponse, type HttpResponse } from "./response.ts";
 /** Absolute path to the folder we serve files from (one level up from src/). */
 export const publicDir = resolve(import.meta.dirname, "..", "public");
 
-/** File extension → Content-Type label sent to the browser. */
 const contentTypes: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",

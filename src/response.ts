@@ -1,7 +1,6 @@
 import type { ReadStream } from "node:fs";
 import type { Socket } from "node:net";
 
-/** Everything needed to send a reply: decided first, then sent by the server. */
 export type HttpResponse = {
   status: string;
   contentType: string;
