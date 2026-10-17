@@ -1,6 +1,6 @@
 import { createServer, type Socket } from "node:net";
 import { styleText } from "node:util";
-import { watch } from "node:fs";
+import { statSync, watch } from "node:fs";
 import { parseRange, parseRequest } from "./src/request.ts";
 import {
   createFileResponse,
@@ -58,9 +58,10 @@ function handleRequest(socket: Socket, request: string) {
 
   // Route POST /api/settings: the page sends the music folder path here, as JSON.
   if (method === "POST" && path === "/api/settings") {
+    let data;
+
     try {
-      const data = JSON.parse(body);
-      console.log(data);
+      data = JSON.parse(body);
     } catch {
       // Not valid JSON: answer 400 instead of letting JSON.parse crash the server.
       const response = jsonResponse("400 Bad Request", {
@@ -70,6 +71,33 @@ function handleRequest(socket: Socket, request: string) {
       sendResponse(socket, response);
       return;
     }
+
+    const musicDir = data?.musicDir;
+
+    if (typeof musicDir !== "string") {
+      const response = jsonResponse("400 Bad Request", {
+        error: "musicDir must be a string",
+      });
+      logRequest(method, path, response.status);
+      sendResponse(socket, response);
+      return;
+    }
+
+    const stats = statSync(musicDir, { throwIfNoEntry: false });
+
+    if (!stats || !stats.isDirectory()) {
+      const response = jsonResponse("400 Bad Request", {
+        error: "musicDir must be an existing folder",
+      });
+      logRequest(method, path, response.status);
+      sendResponse(socket, response);
+      return;
+    }
+
+    const response = jsonResponse("200 OK", { ok: true, musicDir });
+    logRequest(method, path, response.status);
+    sendResponse(socket, response);
+    return;
   }
 
   const filePath = resolvePublicPath(path);
