@@ -21,6 +21,18 @@ export function htmlResponse(status: string, html: string): HttpResponse {
   };
 }
 
+/** Build a JSON response, e.g. { error: "..." } for API errors. */
+export function jsonResponse(status: string, data: unknown): HttpResponse {
+  const body = Buffer.from(JSON.stringify(data));
+
+  return {
+    status,
+    contentType: "application/json; charset=utf-8",
+    body,
+    contentLength: body.length,
+  };
+}
+
 /** Write the status line, headers and body to the socket, then close it. */
 export function sendResponse(socket: Socket, response: HttpResponse) {
   // Status line and headers, each ending in \r\n.

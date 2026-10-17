@@ -9,6 +9,7 @@ import {
 } from "./src/static-files.ts";
 import {
   htmlResponse,
+  jsonResponse,
   sendResponse,
   type HttpResponse,
 } from "./src/response.ts";
@@ -29,14 +30,14 @@ watch(publicDir, () => {
 });
 
 function handleRequest(socket: Socket, request: string) {
-  const { method, path, headers } = parseRequest(request);
+  const { method, path, headers, body } = parseRequest(request);
 
   const range = parseRange(headers.range);
 
   let response: HttpResponse;
 
-  // Live reload: keep this connection open and send reload messages down it later.
-  if (path === "/events") {
+  // Route GET /events: live reload. Keep this connection open and send reload messages down it later.
+  if (method === "GET" && path === "/events") {
     const responseHeaders =
       "HTTP/1.1 200 OK\r\n" +
       "Content-Type: text/event-stream\r\n" +
@@ -53,6 +54,22 @@ function handleRequest(socket: Socket, request: string) {
 
     // Stop here: no body and no socket.end(), so the connection stays open.
     return;
+  }
+
+  // Route POST /api/settings: the page sends the music folder path here, as JSON.
+  if (method === "POST" && path === "/api/settings") {
+    try {
+      const data = JSON.parse(body);
+      console.log(data);
+    } catch {
+      // Not valid JSON: answer 400 instead of letting JSON.parse crash the server.
+      const response = jsonResponse("400 Bad Request", {
+        error: "Body must be JSON",
+      });
+      logRequest(method, path, response.status);
+      sendResponse(socket, response);
+      return;
+    }
   }
 
   const filePath = resolvePublicPath(path);
@@ -100,6 +117,6 @@ const server = createServer((socket) => {
   });
 });
 
-server.listen(3000, () => {
+server.listen(3000, "127.0.0.1", () => {
   console.log("Listening on port 3000\n");
 });
