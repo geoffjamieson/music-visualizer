@@ -60,6 +60,14 @@ function handleRequest(socket: Socket, request: string) {
     return;
   }
 
+  // Route GET /api/settings: tells the page which music folder is set (or null).
+  if (method === "GET" && path === "/api/settings") {
+    const response = jsonResponse("200 OK", { musicDir: musicDir ?? null });
+    logRequest(method, path, response.status);
+    sendResponse(socket, response);
+    return;
+  }
+
   // Route POST /api/settings: the page sends the music folder path here, as JSON.
   if (method === "POST" && path === "/api/settings") {
     let data;

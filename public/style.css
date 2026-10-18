@@ -1,0 +1,10 @@
+input {
+  field-sizing: content;
+  min-width: 20ch; /* Don't shrink to nothing when it's empty. */
+  max-width: 100%; /* Don't run off the screen with a very long path. */
+}
+
+#settings-error {
+  color: red;
+  font-size: 14px;
+}

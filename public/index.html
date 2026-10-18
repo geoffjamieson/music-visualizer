@@ -7,6 +7,21 @@
     <title>Music Visualizer</title>
   </head>
   <body>
-    <audio controls src="/Eyelash.mp3"></audio>
+    <main>
+      <p id="library-status">Checking your music library ...</p>
+
+      <form id="settings-form">
+        <label for="music-dir">Music Folder</label>
+        <input
+          type="text"
+          id="music-dir"
+          placeholder="/Users/you/Music/My Library"
+          required
+        />
+        <button type="submit">Save</button>
+        <p id="settings-error"></p>
+      </form>
+    </main>
+    <script type="module" src="/app.js"></script>
   </body>
 </html>
