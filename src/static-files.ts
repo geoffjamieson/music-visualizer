@@ -30,30 +30,38 @@ const reloadScript = `
 `;
 
 /**
+ * Join a relative path onto a folder.
+ * Returns undefined if the result would end up outside it (e.g. '../server.ts').
+ */
+export function resolveInside(baseDir: string, relativePath: string) {
+  const base = resolve(baseDir);
+
+  // The "./" keeps it relative, so a leading "/" can't jump to the root of the disk.
+  const fullPath = resolve(base, `./${relativePath}`);
+
+  // Refuse anything that ends up outside the folder.
+  if (!fullPath.startsWith(base + sep)) return undefined;
+
+  return fullPath;
+}
+
+/**
  * Turn a URL path into a full file path inside the public folder.
  * Returns undefined if the path would end up outside it (e.g. '/../server.ts').
  */
 export function resolvePublicPath(path: string) {
-  let filePath: string;
-
-  // The "." makes the path relative, so resolve keeps publicDir in front.
+  // '/' → 'public/index.html'
   if (path === "/") {
-    // '/' → 'public/index.html'
-    filePath = resolve(publicDir, "index.html");
-  } else if (path.includes(".")) {
-    // '/style.css' → 'public/style.css'
-    filePath = resolve(publicDir, `.${path}`);
-  } else {
-    // '/about' → 'public/about.html'
-    filePath = resolve(publicDir, `.${path}.html`);
+    return resolveInside(publicDir, "index.html");
   }
 
-  // Refuse any path that ends up outside the public folder.
-  if (!filePath.startsWith(publicDir + sep)) {
-    return undefined;
+  // '/style.css' → 'public/style.css'
+  if (path.includes(".")) {
+    return resolveInside(publicDir, path);
   }
 
-  return filePath;
+  // '/about' → 'public/about.html'
+  return resolveInside(publicDir, `${path}.html`);
 }
 
 /**
