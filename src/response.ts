@@ -6,7 +6,7 @@ export type HttpResponse = {
   contentType: string;
   body: Buffer | ReadStream;
   contentLength: number;
-  contentRange?: string; // only for 206 responses
+  contentRange?: string; // Only for 206 responses.
 };
 
 /** Build a small HTML page response, e.g. for 403 and 404 errors. */

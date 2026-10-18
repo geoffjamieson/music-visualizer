@@ -14,10 +14,14 @@ import {
   type HttpResponse,
 } from "./src/response.ts";
 import { logRequest } from "./src/logger.ts";
+import { loadMusicDir, saveMusicDir } from "./src/settings.ts";
+
+/** The music library folder: from MUSIC_DIR, config.json, or not set yet. */
+let musicDir = loadMusicDir();
 
 const reloadClients = new Set<Socket>();
 
-// Debounce: a burst of file events sends only one reload
+// Debounce: a burst of file events sends only one reload.
 let reloadTimer: ReturnType<typeof setTimeout> | undefined;
 
 watch(publicDir, () => {
@@ -72,9 +76,9 @@ function handleRequest(socket: Socket, request: string) {
       return;
     }
 
-    const musicDir = data?.musicDir;
+    const requestedDir = data?.musicDir;
 
-    if (typeof musicDir !== "string") {
+    if (typeof requestedDir !== "string") {
       const response = jsonResponse("400 Bad Request", {
         error: "musicDir must be a string",
       });
@@ -83,7 +87,7 @@ function handleRequest(socket: Socket, request: string) {
       return;
     }
 
-    const stats = statSync(musicDir, { throwIfNoEntry: false });
+    const stats = statSync(requestedDir, { throwIfNoEntry: false });
 
     if (!stats || !stats.isDirectory()) {
       const response = jsonResponse("400 Bad Request", {
@@ -94,7 +98,13 @@ function handleRequest(socket: Socket, request: string) {
       return;
     }
 
-    const response = jsonResponse("200 OK", { ok: true, musicDir });
+    saveMusicDir(requestedDir);
+    musicDir = requestedDir;
+
+    const response = jsonResponse("200 OK", {
+      ok: true,
+      musicDir: requestedDir,
+    });
     logRequest(method, path, response.status);
     sendResponse(socket, response);
     return;
