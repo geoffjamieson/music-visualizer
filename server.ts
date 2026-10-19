@@ -18,6 +18,7 @@ import {
 import { logRequest } from "./src/logger.ts";
 import { loadMusicDir, saveMusicDir } from "./src/settings.ts";
 import { extname } from "node:path";
+import { listSongs, type Song } from "./src/library.ts";
 
 /** The music library folder: from MUSIC_DIR, config.json, or not set yet. */
 let musicDir = loadMusicDir();
@@ -121,7 +122,38 @@ function handleRequest(socket: Socket, request: string) {
     return;
   }
 
-  // // Route GET /music/…: stream a song from the music library.
+  // Route GET /api/songs: every song in the music library, as JSON.
+  if (method === "GET" && path === "/api/songs") {
+    if (!musicDir) {
+      const response = jsonResponse("404 Not Found", {
+        error: "No music folder set",
+      });
+      logRequest(method, path, response.status);
+      sendResponse(socket, response);
+      return;
+    }
+
+    let songs: Song[];
+
+    try {
+      songs = listSongs(musicDir);
+    } catch {
+      // The folder vanished or can't be read (moved, unplugged, no permission).
+      const response = jsonResponse("500 Internal Server Error", {
+        error: "Couldn't read the music folder",
+      });
+      logRequest(method, path, response.status);
+      sendResponse(socket, response);
+      return;
+    }
+
+    const response = jsonResponse("200 OK", songs);
+    logRequest(method, path, response.status);
+    sendResponse(socket, response);
+    return;
+  }
+
+  // Route GET /music/…: stream a song from the music library.
   if (method === "GET" && path.startsWith("/music/")) {
     if (!musicDir) {
       const response = jsonResponse("404 Not Found", {
