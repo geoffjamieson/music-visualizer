@@ -6,6 +6,8 @@ import {
   createFileResponse,
   resolvePublicPath,
   publicDir,
+  audioExtensions,
+  resolveInside,
 } from "./src/static-files.ts";
 import {
   htmlResponse,
@@ -15,6 +17,7 @@ import {
 } from "./src/response.ts";
 import { logRequest } from "./src/logger.ts";
 import { loadMusicDir, saveMusicDir } from "./src/settings.ts";
+import { extname } from "node:path";
 
 /** The music library folder: from MUSIC_DIR, config.json, or not set yet. */
 let musicDir = loadMusicDir();
@@ -113,6 +116,56 @@ function handleRequest(socket: Socket, request: string) {
       ok: true,
       musicDir: requestedDir,
     });
+    logRequest(method, path, response.status);
+    sendResponse(socket, response);
+    return;
+  }
+
+  // // Route GET /music/…: stream a song from the music library.
+  if (method === "GET" && path.startsWith("/music/")) {
+    if (!musicDir) {
+      const response = jsonResponse("404 Not Found", {
+        error: "No music folder set",
+      });
+      logRequest(method, path, response.status);
+      sendResponse(socket, response);
+      return;
+    }
+
+    // '/music/Two%20Weeks.mp3' → 'Two Weeks.mp3'
+    let songPath: string;
+    try {
+      songPath = decodeURIComponent(path.slice("/music/".length));
+    } catch {
+      // Broken encoding like '%zz': answer 400 instead of crashing.
+      const response = jsonResponse("400 Bad Request", {
+        error: "Bad song path",
+      });
+      logRequest(method, path, response.status);
+      sendResponse(socket, response);
+      return;
+    }
+
+    if (!audioExtensions.includes(extname(songPath).toLowerCase())) {
+      const response = jsonResponse("403 Forbidden", {
+        error: "Not an audio file",
+      });
+      logRequest(method, path, response.status);
+      sendResponse(socket, response);
+      return;
+    }
+
+    const filePath = resolveInside(musicDir, songPath);
+
+    // Tried to escape the library folder (e.g. '/music/../../.ssh/id_rsa').
+    if (!filePath) {
+      const response = jsonResponse("403 Forbidden", { error: "Not allowed" });
+      logRequest(method, path, response.status);
+      sendResponse(socket, response);
+      return;
+    }
+
+    const response = createFileResponse(filePath, range);
     logRequest(method, path, response.status);
     sendResponse(socket, response);
     return;

@@ -19,7 +19,13 @@ const contentTypes: Record<string, string> = {
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".mp3": "audio/mpeg",
+  ".m4a": "audio/mp4",
+  ".flac": "audio/flac",
+  ".wav": "audio/wav",
 };
+
+/** File types the /music/ route will serve. */
+export const audioExtensions = [".mp3", ".m4a", ".flac", ".wav"];
 
 /** Injected into every HTML page so it reloads when a file in public/ changes. */
 const reloadScript = `
