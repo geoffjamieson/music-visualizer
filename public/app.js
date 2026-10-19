@@ -14,6 +14,7 @@ function showMusicDir(musicDir) {
 // On load: ask the server whether a folder is already set.
 const response = await fetch("/api/settings");
 const settings = await response.json();
+showMusicDir(settings.musicDir);
 
 // On save: send the folder to the server, show the result or the error.
 form.addEventListener("submit", async (event) => {
