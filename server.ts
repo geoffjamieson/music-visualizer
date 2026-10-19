@@ -37,12 +37,21 @@ watch(publicDir, () => {
   }, 100);
 });
 
+/** Log the request and send its response: the last step of every route. */
+function respond(
+  socket: Socket,
+  method: string,
+  path: string,
+  response: HttpResponse,
+) {
+  logRequest(method, path, response.status);
+  sendResponse(socket, response);
+}
+
 function handleRequest(socket: Socket, request: string) {
   const { method, path, headers, body } = parseRequest(request);
 
   const range = parseRange(headers.range);
-
-  let response: HttpResponse;
 
   // Route GET /events: live reload. Keep this connection open and send reload messages down it later.
   if (method === "GET" && path === "/events") {
@@ -66,9 +75,12 @@ function handleRequest(socket: Socket, request: string) {
 
   // Route GET /api/settings: tells the page which music folder is set (or null).
   if (method === "GET" && path === "/api/settings") {
-    const response = jsonResponse("200 OK", { musicDir: musicDir ?? null });
-    logRequest(method, path, response.status);
-    sendResponse(socket, response);
+    respond(
+      socket,
+      method,
+      path,
+      jsonResponse("200 OK", { musicDir: musicDir ?? null }),
+    );
     return;
   }
 
@@ -80,56 +92,71 @@ function handleRequest(socket: Socket, request: string) {
       data = JSON.parse(body);
     } catch {
       // Not valid JSON: answer 400 instead of letting JSON.parse crash the server.
-      const response = jsonResponse("400 Bad Request", {
-        error: "Body must be JSON",
-      });
-      logRequest(method, path, response.status);
-      sendResponse(socket, response);
+      respond(
+        socket,
+        method,
+        path,
+        jsonResponse("400 Bad Request", {
+          error: "Body must be JSON",
+        }),
+      );
       return;
     }
 
     const requestedDir = data?.musicDir;
 
     if (typeof requestedDir !== "string") {
-      const response = jsonResponse("400 Bad Request", {
-        error: "musicDir must be a string",
-      });
-      logRequest(method, path, response.status);
-      sendResponse(socket, response);
+      respond(
+        socket,
+        method,
+        path,
+        jsonResponse("400 Bad Request", {
+          error: "musicDir must be a string",
+        }),
+      );
       return;
     }
 
     const stats = statSync(requestedDir, { throwIfNoEntry: false });
 
     if (!stats || !stats.isDirectory()) {
-      const response = jsonResponse("400 Bad Request", {
-        error: "musicDir must be an existing folder",
-      });
-      logRequest(method, path, response.status);
-      sendResponse(socket, response);
+      respond(
+        socket,
+        method,
+        path,
+        jsonResponse("400 Bad Request", {
+          error: "musicDir must be an existing folder",
+        }),
+      );
       return;
     }
 
     saveMusicDir(requestedDir);
     musicDir = requestedDir;
 
-    const response = jsonResponse("200 OK", {
-      ok: true,
-      musicDir: requestedDir,
-    });
-    logRequest(method, path, response.status);
-    sendResponse(socket, response);
+    respond(
+      socket,
+      method,
+      path,
+      jsonResponse("200 OK", {
+        ok: true,
+        musicDir: requestedDir,
+      }),
+    );
     return;
   }
 
   // Route GET /api/songs: every song in the music library, as JSON.
   if (method === "GET" && path === "/api/songs") {
     if (!musicDir) {
-      const response = jsonResponse("404 Not Found", {
-        error: "No music folder set",
-      });
-      logRequest(method, path, response.status);
-      sendResponse(socket, response);
+      respond(
+        socket,
+        method,
+        path,
+        jsonResponse("404 Not Found", {
+          error: "No music folder set",
+        }),
+      );
       return;
     }
 
@@ -139,28 +166,32 @@ function handleRequest(socket: Socket, request: string) {
       songs = listSongs(musicDir);
     } catch {
       // The folder vanished or can't be read (moved, unplugged, no permission).
-      const response = jsonResponse("500 Internal Server Error", {
-        error: "Couldn't read the music folder",
-      });
-      logRequest(method, path, response.status);
-      sendResponse(socket, response);
+      respond(
+        socket,
+        method,
+        path,
+        jsonResponse("500 Internal Server Error", {
+          error: "Couldn't read the music folder",
+        }),
+      );
       return;
     }
 
-    const response = jsonResponse("200 OK", songs);
-    logRequest(method, path, response.status);
-    sendResponse(socket, response);
+    respond(socket, method, path, jsonResponse("200 OK", songs));
     return;
   }
 
   // Route GET /music/…: stream a song from the music library.
   if (method === "GET" && path.startsWith("/music/")) {
     if (!musicDir) {
-      const response = jsonResponse("404 Not Found", {
-        error: "No music folder set",
-      });
-      logRequest(method, path, response.status);
-      sendResponse(socket, response);
+      respond(
+        socket,
+        method,
+        path,
+        jsonResponse("404 Not Found", {
+          error: "No music folder set",
+        }),
+      );
       return;
     }
 
@@ -170,20 +201,26 @@ function handleRequest(socket: Socket, request: string) {
       songPath = decodeURIComponent(path.slice("/music/".length));
     } catch {
       // Broken encoding like '%zz': answer 400 instead of crashing.
-      const response = jsonResponse("400 Bad Request", {
-        error: "Bad song path",
-      });
-      logRequest(method, path, response.status);
-      sendResponse(socket, response);
+      respond(
+        socket,
+        method,
+        path,
+        jsonResponse("400 Bad Request", {
+          error: "Bad song path",
+        }),
+      );
       return;
     }
 
     if (!audioExtensions.includes(extname(songPath).toLowerCase())) {
-      const response = jsonResponse("403 Forbidden", {
-        error: "Not an audio file",
-      });
-      logRequest(method, path, response.status);
-      sendResponse(socket, response);
+      respond(
+        socket,
+        method,
+        path,
+        jsonResponse("403 Forbidden", {
+          error: "Not an audio file",
+        }),
+      );
       return;
     }
 
@@ -191,15 +228,15 @@ function handleRequest(socket: Socket, request: string) {
 
     // Tried to escape the library folder (e.g. '/music/../../.ssh/id_rsa').
     if (!filePath) {
-      const response = jsonResponse("403 Forbidden", { error: "Not allowed" });
-      logRequest(method, path, response.status);
-      sendResponse(socket, response);
-      return;
+      return respond(
+        socket,
+        method,
+        path,
+        jsonResponse("403 Forbidden", { error: "Not allowed" }),
+      );
     }
 
-    const response = createFileResponse(filePath, range);
-    logRequest(method, path, response.status);
-    sendResponse(socket, response);
+    respond(socket, method, path, createFileResponse(filePath, range));
     return;
   }
 
@@ -207,13 +244,15 @@ function handleRequest(socket: Socket, request: string) {
 
   // No safe path means the request tried to escape the public folder.
   if (!filePath) {
-    response = htmlResponse("403 Forbidden", "<h1>403: Not allowed</h1>");
-  } else {
-    response = createFileResponse(filePath, range);
+    return respond(
+      socket,
+      method,
+      path,
+      htmlResponse("403 Forbidden", "<h1>403: Not allowed</h1>"),
+    );
   }
 
-  logRequest(method, path, response.status);
-  sendResponse(socket, response);
+  return respond(socket, method, path, createFileResponse(filePath, range));
 }
 
 const server = createServer((socket) => {
