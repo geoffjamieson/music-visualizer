@@ -1,19 +1,16 @@
 import { createServer, type Socket } from "node:net";
 import { styleText } from "node:util";
 import { statSync, watch } from "node:fs";
-import { extname } from "node:path";
 import { parseRange, parseRequest } from "./src/request.ts";
 import {
   createFileResponse,
   resolvePublicPath,
   publicDir,
-  audioExtensions,
-  resolveInside,
 } from "./src/static-files.ts";
 import { htmlResponse, jsonResponse } from "./src/response.ts";
 import { logRequest } from "./src/logger.ts";
 import { respond, type Context } from "./src/router.ts";
-import { getSongs } from "./src/routes/songs.ts";
+import { getSongs, streamSong } from "./src/routes/songs.ts";
 import { setMusicDir, getMusicDir } from "./src/settings.ts";
 
 const reloadClients = new Set<Socket>();
@@ -106,58 +103,6 @@ function saveSettings(ctx: Context) {
       musicDir: requestedDir,
     }),
   );
-}
-
-/** GET /music/…: stream a song from the music library (audio files only, never outside the folder). */
-function streamSong(ctx: Context) {
-  const musicDir = getMusicDir();
-
-  if (!musicDir) {
-    respond(
-      ctx,
-      jsonResponse("404 Not Found", {
-        error: "No music folder set",
-      }),
-    );
-    return;
-  }
-
-  // '/music/Two%20Weeks.mp3' → 'Two Weeks.mp3'
-  let songPath: string;
-  try {
-    songPath = decodeURIComponent(ctx.path.slice("/music/".length));
-  } catch {
-    // Broken encoding like '%zz': answer 400 instead of crashing.
-    respond(
-      ctx,
-      jsonResponse("400 Bad Request", {
-        error: "Bad song path",
-      }),
-    );
-    return;
-  }
-
-  if (!audioExtensions.includes(extname(songPath).toLowerCase())) {
-    respond(
-      ctx,
-      jsonResponse("403 Forbidden", {
-        error: "Not an audio file",
-      }),
-    );
-    return;
-  }
-
-  const filePath = resolveInside(musicDir, songPath);
-
-  // Tried to escape the library folder (e.g. '/music/../../.ssh/id_rsa').
-  if (!filePath) {
-    return respond(
-      ctx,
-      jsonResponse("403 Forbidden", { error: "Not allowed" }),
-    );
-  }
-
-  respond(ctx, createFileResponse(filePath, ctx.range));
 }
 
 /** One route: which requests it answers, and the function that answers them. */
