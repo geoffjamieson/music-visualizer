@@ -14,13 +14,15 @@ Work in progress. The plan, in milestones:
    - ✅ Live reload with Server-Sent Events
    - ✅ Stream files with `createReadStream` instead of reading them whole
    - ✅ `416 Range Not Satisfiable` for ranges past the end of a file
-3. **Music library.** Next:
-   - First-run setup: ask where the music folder is, save it to a config file (`MUSIC_DIR` as a developer override)
-   - Stream songs from that folder, with the same path-safety check as `public/`
-   - `/api/songs`: list the library as JSON (recursively, through artist/album folders)
-   - Read titles, artists, albums etc. from the files' ID3 tags, parsed by hand
-   - A plain playlist page: one flat list sorted by artist, album and track; play, pause, seek, next, previous
-   - Small extras: shuffle and repeat
+3. **Music library.** In progress:
+   - ✅ Read request bodies, including requests that arrive in several pieces
+   - ✅ Setup page: ask where the music folder is, save it to `config.json` (`MUSIC_DIR` as a developer override)
+   - ✅ Stream songs from that folder, with the same path-safety check as `public/`
+   - ✅ `/api/songs`: list the library as JSON (recursively, through artist/album folders)
+   - ✅ Refactor: a small hand-written router, with each route in its own file
+   - ⬜ A plain playlist page: one flat list sorted by artist, album and track; play, pause, seek, next, previous
+   - ⬜ Read titles, artists, albums etc. from the files' ID3 tags, parsed by hand
+   - ⬜ Small extras: shuffle and repeat
 4. **The visualizer.** Web Audio analysis driving bars, meters and readouts, with a look inspired by 2000s music gadgets (think Winamp with its Milkdrop visualizer). Optional: a Winamp-style 10-band EQ. Ideas are collected in [IDEAS.md](IDEAS.md).
 5. **Make it an app.** Wrap it in Electron: its own window, and a native folder picker for the music library.
 
@@ -39,19 +41,41 @@ npm install
 node --watch server.ts
 ```
 
-Then open http://localhost:3000.
+Then open http://localhost:3000 and enter the path to your music folder (e.g. `/Users/you/Music/My Library`). It's saved to `config.json` (ignored by Git), so it's remembered next time.
 
-Music files aren't included in the repo. To try playback, put an MP3 in the `public` folder and point the `<audio>` tag in `public/index.html` at it. Audio files in `public` are ignored by Git.
+To skip the setup page, set the folder when starting the server:
+
+```bash
+MUSIC_DIR="$HOME/Music/My Library" node --watch server.ts
+```
+
+No music is included in the repo; the server reads it straight from your folder.
+
+## API
+
+| Method | Path | What it does |
+|---|---|---|
+| `GET` | `/api/settings` | `{ "musicDir": "…" }`, or `null` if no folder is set |
+| `POST` | `/api/settings` | Body `{ "musicDir": "…" }`. Saves it if it's an existing folder, otherwise `400` with `{ "error": "…" }` |
+| `GET` | `/api/songs` | Every song in the library: `[{ "title": "…", "path": "Artist/Album/Song.mp3" }]` |
+| `GET` | `/music/<path>` | Streams one song (supports ranges). `<path>` is a `path` from `/api/songs`, URL-encoded |
+| `GET` | `/events` | Live reload stream (Server-Sent Events) |
+
+Anything else is served from `public/`.
 
 ## What the server does
 
-- Parses raw HTTP requests by hand (method, path, headers)
+- Parses raw HTTP requests by hand (method, path, headers, body), and waits for the whole request even when it arrives in several pieces
+- Routes requests with a small hand-written router: a table of method + path → handler, with prefix matching for `/music/…`
+- A JSON API with input validation: bad input gets a `400` with a message instead of crashing the server
 - Serves files from `public`, with clean URLs (`/about` → `about.html`)
 - Sets `Content-Type` from the file extension and sends files as raw bytes
 - Supports **range requests**: reads the `Range` header and answers `206 Partial Content` with just the requested bytes, plus `Content-Range` and `Accept-Ranges`, so audio seeking works
 - **Streams** files in chunks with `createReadStream`, so a song is never loaded into memory whole
 - **Live reload**: watches `public/`, injects a small script into every HTML page, and tells open pages to reload over Server-Sent Events
-- Blocks path traversal (`/../server.ts` gets a `403 Forbidden`)
+- Blocks path traversal (`/../server.ts` gets a `403 Forbidden`), in `public/` and in the music folder alike
+- Serves only audio files from the music folder, and decodes URL-encoded paths (`%20` → space) before checking them
+- Listens on `127.0.0.1` only, so other devices on the network can't reach it
 - Survives clients hanging up mid-response instead of crashing
 - Logs one color-coded line per request, e.g. `GET /song.mp3 -> 206 Partial Content`
 
@@ -63,3 +87,8 @@ Music files aren't included in the repo. To try playback, put an MP3 in the `pub
 - **Browsers hang up constantly.** An `<audio>` tag fetches the start of a song to learn its length, then closes the connection. Without an `error` handler on the socket, that `EPIPE` error crashes the server.
 - **Git history is permanent until you rewrite it.** Deleting a file in a new commit doesn't remove it from old ones; `git filter-repo` does, and it's only safe before pushing.
 - **A response doesn't have to end.** Server-Sent Events are a normal HTTP response that never closes: the server keeps the socket and writes `data: ...` messages down it whenever it wants.
+- **TCP doesn't keep messages in one piece.** A request can arrive split across several `data` events. `Content-Length` is how the server knows when it has the whole body.
+- **Never trust the input.** One `JSON.parse("hello")` without a `try` took the whole server down. Every request body gets checked before it's used.
+- **Decode, then check.** `%2F` is an encoded `/`, so `..%2F` only becomes an escape attempt after decoding. The path-safety check has to run on the decoded path.
+- **An imported variable is read-only.** To share state that changes (the music folder), one module owns it and exposes `getMusicDir` / `setMusicDir`, like a tiny store.
+- **Types vanish at runtime.** Node strips TypeScript types before running, so importing a type needs `import type`, or Node looks for an export that doesn't exist.
