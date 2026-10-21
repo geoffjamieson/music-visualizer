@@ -8,7 +8,7 @@ export type Settings = { musicDir: string };
 const configPath = resolve(import.meta.dirname, "..", "config.json");
 
 /** The saved music folder, or undefined if none is set yet. MUSIC_DIR overrides it. */
-export function loadMusicDir(): string | undefined {
+function loadMusicDir(): string | undefined {
   // MUSIC_DIR (set when starting the server) wins.
   if (process.env.MUSIC_DIR) return process.env.MUSIC_DIR;
 
@@ -25,8 +25,22 @@ export function loadMusicDir(): string | undefined {
 }
 
 /** Save the music folder to config.json. */
-export function saveMusicDir(musicDir: string) {
+function saveMusicDir(musicDir: string) {
   const settings: Settings = { musicDir };
 
   writeFileSync(configPath, JSON.stringify(settings, null, 2));
+}
+
+/** The current music folder. Private: read it with getMusicDir, change it with setMusicDir. */
+let musicDir = loadMusicDir();
+
+/** The music folder in use, or undefined if none is set yet. */
+export function getMusicDir() {
+  return musicDir;
+}
+
+/** Change the music folder: saves it to config.json and uses it right away. */
+export function setMusicDir(dir: string) {
+  saveMusicDir(dir);
+  musicDir = dir;
 }

@@ -1,6 +1,7 @@
 import { createServer, type Socket } from "node:net";
 import { styleText } from "node:util";
 import { statSync, watch } from "node:fs";
+import { extname } from "node:path";
 import { parseRange, parseRequest } from "./src/request.ts";
 import {
   createFileResponse,
@@ -9,19 +10,11 @@ import {
   audioExtensions,
   resolveInside,
 } from "./src/static-files.ts";
-import {
-  htmlResponse,
-  jsonResponse,
-  sendResponse,
-  type HttpResponse,
-} from "./src/response.ts";
+import { htmlResponse, jsonResponse } from "./src/response.ts";
 import { logRequest } from "./src/logger.ts";
-import { loadMusicDir, saveMusicDir } from "./src/settings.ts";
-import { extname } from "node:path";
-import { listSongs, type Song } from "./src/library.ts";
-
-/** The music library folder: from MUSIC_DIR, config.json, or not set yet. */
-let musicDir = loadMusicDir();
+import { respond, type Context } from "./src/router.ts";
+import { getSongs } from "./src/routes/songs.ts";
+import { setMusicDir, getMusicDir } from "./src/settings.ts";
 
 const reloadClients = new Set<Socket>();
 
@@ -36,21 +29,6 @@ watch(publicDir, () => {
     }
   }, 100);
 });
-
-/** Everything a route handler needs to know about one request. */
-type Context = {
-  socket: Socket;
-  method: string;
-  path: string;
-  body: string;
-  range: ReturnType<typeof parseRange>;
-};
-
-/** Log the request and send its response: the last step of every route. */
-function respond(ctx: Context, response: HttpResponse) {
-  logRequest(ctx.method, ctx.path, response.status);
-  sendResponse(ctx.socket, response);
-}
 
 /** GET /events: live reload. Keep this connection open and send reload messages down it later. */
 function streamEvents(ctx: Context) {
@@ -73,6 +51,8 @@ function streamEvents(ctx: Context) {
 
 /** GET /api/settings: tells the page which music folder is set (or null). */
 function getSettings(ctx: Context) {
+  const musicDir = getMusicDir();
+
   respond(ctx, jsonResponse("200 OK", { musicDir: musicDir ?? null }));
 }
 
@@ -117,8 +97,7 @@ function saveSettings(ctx: Context) {
     return;
   }
 
-  saveMusicDir(requestedDir);
-  musicDir = requestedDir;
+  setMusicDir(requestedDir);
 
   respond(
     ctx,
@@ -129,38 +108,10 @@ function saveSettings(ctx: Context) {
   );
 }
 
-/** GET /api/songs: every song in the music library, as JSON. */
-function getSongs(ctx: Context) {
-  if (!musicDir) {
-    respond(
-      ctx,
-      jsonResponse("404 Not Found", {
-        error: "No music folder set",
-      }),
-    );
-    return;
-  }
-
-  let songs: Song[];
-
-  try {
-    songs = listSongs(musicDir);
-  } catch {
-    // The folder vanished or can't be read (moved, unplugged, no permission).
-    respond(
-      ctx,
-      jsonResponse("500 Internal Server Error", {
-        error: "Couldn't read the music folder",
-      }),
-    );
-    return;
-  }
-
-  respond(ctx, jsonResponse("200 OK", songs));
-}
-
 /** GET /music/…: stream a song from the music library (audio files only, never outside the folder). */
 function streamSong(ctx: Context) {
+  const musicDir = getMusicDir();
+
   if (!musicDir) {
     respond(
       ctx,
