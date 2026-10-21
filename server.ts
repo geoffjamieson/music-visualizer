@@ -1,50 +1,12 @@
 import { createServer, type Socket } from "node:net";
 import { styleText } from "node:util";
-import { watch } from "node:fs";
 import { parseRange, parseRequest } from "./src/request.ts";
-import {
-  createFileResponse,
-  resolvePublicPath,
-  publicDir,
-} from "./src/static-files.ts";
+import { createFileResponse, resolvePublicPath } from "./src/static-files.ts";
 import { htmlResponse } from "./src/response.ts";
-import { logRequest } from "./src/logger.ts";
+import { streamEvents } from "./src/live-reload.ts";
 import { respond, type Context } from "./src/router.ts";
 import { getSongs, streamSong } from "./src/routes/songs.ts";
 import { getSettings, saveSettings } from "./src/routes/settings.ts";
-
-const reloadClients = new Set<Socket>();
-
-// Debounce: a burst of file events sends only one reload.
-let reloadTimer: ReturnType<typeof setTimeout> | undefined;
-
-watch(publicDir, () => {
-  clearTimeout(reloadTimer);
-  reloadTimer = setTimeout(() => {
-    for (const socket of reloadClients) {
-      socket.write("data: reload\n\n");
-    }
-  }, 100);
-});
-
-/** GET /events: live reload. Keep this connection open and send reload messages down it later. */
-function streamEvents(ctx: Context) {
-  const responseHeaders =
-    "HTTP/1.1 200 OK\r\n" +
-    "Content-Type: text/event-stream\r\n" +
-    "Cache-Control: no-cache\r\n" +
-    "\r\n";
-  logRequest(ctx.method, ctx.path, "200 OK");
-  ctx.socket.write(responseHeaders);
-
-  // Remember this connection so the watcher can message it later.
-  reloadClients.add(ctx.socket);
-
-  // Forget it when the browser disconnects (tab closed, page reloaded).
-  ctx.socket.on("close", () => reloadClients.delete(ctx.socket));
-
-  // No socket.end(): the connection stays open for reload messages.
-}
 
 /** One route: which requests it answers, and the function that answers them. */
 type Route = {
