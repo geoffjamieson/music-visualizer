@@ -4,17 +4,9 @@ import { parseRange, parseRequest } from "./src/request.ts";
 import { createFileResponse, resolvePublicPath } from "./src/static-files.ts";
 import { htmlResponse } from "./src/response.ts";
 import { streamEvents } from "./src/live-reload.ts";
-import { respond, type Context } from "./src/router.ts";
+import { respond, findRoute, type Context, type Route } from "./src/router.ts";
 import { getSongs, streamSong } from "./src/routes/songs.ts";
 import { getSettings, saveSettings } from "./src/routes/settings.ts";
-
-/** One route: which requests it answers, and the function that answers them. */
-type Route = {
-  method: string;
-  path: string;
-  handler: (ctx: Context) => void;
-  prefix?: boolean; // match any path that starts with 'path'
-};
 
 /** Every route the server has. The first match wins; anything else is a static file. */
 const routes: Route[] = [
@@ -32,11 +24,7 @@ function handleRequest(socket: Socket, request: string) {
 
   const ctx: Context = { socket, method, path, body, range };
 
-  const route = routes.find(
-    (r) =>
-      r.method === method &&
-      (r.prefix ? path.startsWith(r.path) : path === r.path),
-  );
+  const route = findRoute(routes, method, path);
 
   if (route) return route.handler(ctx);
 
