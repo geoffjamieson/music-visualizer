@@ -4,6 +4,10 @@ input {
   max-width: 100%; /* Don't run off the screen with a very long path. */
 }
 
+[aria-current] {
+  font-weight: bold;
+}
+
 #settings-error {
   color: red;
   font-size: 14px;

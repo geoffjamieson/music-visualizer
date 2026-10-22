@@ -5,6 +5,8 @@ const musicDirInput = document.querySelector("#music-dir");
 const settingsError = document.querySelector("#settings-error");
 const player = document.querySelector("#player");
 const playlist = document.querySelector("#playlist");
+const previousBtn = document.querySelector("#prev");
+const nextBtn = document.querySelector("#next");
 
 // ---- Settings ----
 
@@ -45,32 +47,58 @@ settingsForm.addEventListener("submit", async (event) => {
 
 // ---- Playlist ----
 
+/** Every song in the library, in playlist order. */
+let songs = [];
+
+/** Index of the current song playing, or -1 if none. */
+let currentIndex = -1;
+
 /** '/music/' + the song's path, each part URL-encoded ('Two Weeks' → 'Two%20Weeks'). */
 function songUrl(song) {
   return "/music/" + song.path.split("/").map(encodeURIComponent).join("/");
 }
 
-/** Start playing one song. */
-function playSong(song) {
-  player.src = songUrl(song);
+/** Play the song at this position in the playlist (does nothing if there's no song there). */
+function playSong(index) {
+  if (index < 0 || index >= songs.length) return;
+
+  currentIndex = index;
+  player.src = songUrl(songs[index]);
   player.play();
+
+  // Bold only the song that's playing.
+  const buttons = playlist.querySelectorAll("button");
+  buttons.forEach((button) => button.removeAttribute("aria-current"));
+  buttons[index].setAttribute("aria-current", "true");
 }
 
 /** Fetch every song in the library and show it as a list. */
 async function loadSongs() {
   const response = await fetch("/api/songs");
-  const songs = await response.json();
+  songs = await response.json();
 
-  for (const song of songs) {
+  songs.forEach((song, index) => {
     const item = document.createElement("li");
     const button = document.createElement("button");
     button.textContent = song.title;
-    button.addEventListener("click", () => playSong(song));
-
+    button.addEventListener("click", () => playSong(index));
     item.append(button);
     playlist.append(item);
-  }
+  });
 }
+
+// When a song finishes, play the next one (if there is one).
+player.addEventListener("ended", () => {
+  playSong(currentIndex + 1);
+});
+
+previousBtn.addEventListener("click", () => {
+  playSong(currentIndex - 1);
+});
+
+nextBtn.addEventListener("click", () => {
+  playSong(currentIndex + 1);
+});
 
 // ---- Start ----
 await loadSettings();
