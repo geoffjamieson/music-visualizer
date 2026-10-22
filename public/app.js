@@ -1,30 +1,37 @@
+// ---- Elements ----
 const libraryStatus = document.querySelector("#library-status");
-const form = document.querySelector("#settings-form");
-const input = document.querySelector("#music-dir");
-const error = document.querySelector("#settings-error");
+const settingsForm = document.querySelector("#settings-form");
+const musicDirInput = document.querySelector("#music-dir");
+const settingsError = document.querySelector("#settings-error");
+const player = document.querySelector("#player");
+const playlist = document.querySelector("#playlist");
+
+// ---- Settings ----
 
 /** Show which folder is set, and pre-fill the form with it. */
 function showMusicDir(musicDir) {
   libraryStatus.textContent = musicDir
     ? `Library: ${musicDir}`
     : "No music folder set yet.";
-  input.value = musicDir ?? "";
+  musicDirInput.value = musicDir ?? "";
 }
 
-// On load: ask the server whether a folder is already set.
-const response = await fetch("/api/settings");
-const settings = await response.json();
-showMusicDir(settings.musicDir);
+/** Ask the server whether a folder is already set. */
+async function loadSettings() {
+  const response = await fetch("/api/settings");
+  const settings = await response.json();
+  showMusicDir(settings.musicDir);
+}
 
 // On save: send the folder to the server, show the result or the error.
-form.addEventListener("submit", async (event) => {
+settingsForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  error.textContent = "";
+  settingsError.textContent = "";
 
   const response = await fetch("/api/settings", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ musicDir: input.value }),
+    body: JSON.stringify({ musicDir: musicDirInput.value }),
   });
 
   const result = await response.json();
@@ -32,6 +39,39 @@ form.addEventListener("submit", async (event) => {
   if (response.ok) {
     showMusicDir(result.musicDir);
   } else {
-    error.textContent = result.error;
+    settingsError.textContent = result.error;
   }
 });
+
+// ---- Playlist ----
+
+/** '/music/' + the song's path, each part URL-encoded ('Two Weeks' → 'Two%20Weeks'). */
+function songUrl(song) {
+  return "/music/" + song.path.split("/").map(encodeURIComponent).join("/");
+}
+
+/** Start playing one song. */
+function playSong(song) {
+  player.src = songUrl(song);
+  player.play();
+}
+
+/** Fetch every song in the library and show it as a list. */
+async function loadSongs() {
+  const response = await fetch("/api/songs");
+  const songs = await response.json();
+
+  for (const song of songs) {
+    const item = document.createElement("li");
+    const button = document.createElement("button");
+    button.textContent = song.title;
+    button.addEventListener("click", () => playSong(song));
+
+    item.append(button);
+    playlist.append(item);
+  }
+}
+
+// ---- Start ----
+await loadSettings();
+await loadSongs();
