@@ -20,7 +20,7 @@ Work in progress. The plan, in milestones:
    - ✅ Stream songs from that folder, with the same path-safety check as `public/`
    - ✅ `/api/songs`: list the library as JSON (recursively, through artist/album folders)
    - ✅ Refactor: a small hand-written router, with each route in its own file
-   - ⬜ A plain playlist page: one flat list sorted by artist, album and track; play, pause, seek, next, previous
+   - ✅ A plain playlist page: one flat list sorted by artist, album and track; play, pause and seek with the browser's audio controls; previous, next, auto-advance and the current song in bold
    - ⬜ Read titles, artists, albums etc. from the files' ID3 tags, parsed by hand
    - ⬜ Small extras: shuffle and repeat
 4. **The visualizer.** Web Audio analysis driving bars, meters and readouts, with a look inspired by 2000s music gadgets (think Winamp with its Milkdrop visualizer). Optional: a Winamp-style 10-band EQ. Ideas are collected in [IDEAS.md](IDEAS.md).
