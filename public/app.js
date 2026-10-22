@@ -40,6 +40,8 @@ settingsForm.addEventListener("submit", async (event) => {
 
   if (response.ok) {
     showMusicDir(result.musicDir);
+    player.pause();
+    await loadSongs();
   } else {
     settingsError.textContent = result.error;
   }
@@ -74,7 +76,13 @@ function playSong(index) {
 
 /** Fetch every song in the library and show it as a list. */
 async function loadSongs() {
+  songs = [];
+  currentIndex = -1;
+  playlist.replaceChildren();
+
   const response = await fetch("/api/songs");
+  if (!response.ok) return;
+
   songs = await response.json();
 
   songs.forEach((song, index) => {
