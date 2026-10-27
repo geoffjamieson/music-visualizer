@@ -21,7 +21,7 @@ Work in progress. The plan, in milestones:
    - ✅ `/api/songs`: list the library as JSON (recursively, through artist/album folders)
    - ✅ Refactor: a small hand-written router, with each route in its own file
    - ✅ A plain playlist page: one flat list sorted by artist, album and track; play, pause and seek with the browser's audio controls; previous, next, auto-advance and the current song in bold
-   - ⬜ Read titles, artists, albums etc. from the files' ID3 tags, parsed by hand
+   - ✅ Read title, artist, album and track from the files' ID3 tags, parsed by hand, with the folder names as a fallback (FLAC and M4A files have no ID3 tag)
    - ⬜ Small extras: shuffle and repeat
 4. **The visualizer.** Web Audio analysis driving bars, meters and readouts, with a look inspired by 2000s music gadgets (think Winamp with its Milkdrop visualizer). Optional: a Winamp-style 10-band EQ. Ideas are collected in [IDEAS.md](IDEAS.md).
 5. **Make it an app.** Wrap it in Electron: its own window, and a native folder picker for the music library.
@@ -57,7 +57,7 @@ No music is included in the repo; the server reads it straight from your folder.
 |---|---|---|
 | `GET` | `/api/settings` | `{ "musicDir": "…" }`, or `null` if no folder is set |
 | `POST` | `/api/settings` | Body `{ "musicDir": "…" }`. Saves it if it's an existing folder, otherwise `400` with `{ "error": "…" }` |
-| `GET` | `/api/songs` | Every song in the library: `[{ "title": "…", "path": "Artist/Album/Song.mp3" }]` |
+| `GET` | `/api/songs` | Every song in the library: `[{ "title": "…", "artist": "…", "album": "…", "track": 1, "path": "Artist/Album/Song.mp3" }]`. `track` is left out when there isn't one |
 | `GET` | `/music/<path>` | Streams one song (supports ranges). `<path>` is a `path` from `/api/songs`, URL-encoded |
 | `GET` | `/events` | Live reload stream (Server-Sent Events) |
 
@@ -67,6 +67,7 @@ Anything else is served from `public/`.
 
 - Parses raw HTTP requests by hand (method, path, headers, body), and waits for the whole request even when it arrives in several pieces
 - Routes requests with a small hand-written router: a table of method + path → handler, with prefix matching for `/music/…`
+- Reads each song's title, artist, album and track from its **ID3v2 tag** by hand: only the tag's bytes are read from disk, never the audio, and text is decoded as latin1, UTF-16 or UTF-8 as the tag says
 - A JSON API with input validation: bad input gets a `400` with a message instead of crashing the server
 - Serves files from `public`, with clean URLs (`/about` → `about.html`)
 - Sets `Content-Type` from the file extension and sends files as raw bytes
@@ -92,3 +93,6 @@ Anything else is served from `public/`.
 - **Decode, then check.** `%2F` is an encoded `/`, so `..%2F` only becomes an escape attempt after decoding. The path-safety check has to run on the decoded path.
 - **An imported variable is read-only.** To share state that changes (the music folder), one module owns it and exposes `getMusicDir` / `setMusicDir`, like a tiny store.
 - **Types vanish at runtime.** Node strips TypeScript types before running, so importing a type needs `import type`, or Node looks for an export that doesn't exist.
+- **Bytes don't explain themselves.** The same byte can be a number, a letter or part of a size, depending on where it sits. A position (`pos + 4`) and the value at that position (`buf[pos + 4]`) are easy to mix up.
+- **Text needs an encoding.** `"2/2"` can be 3 bytes (latin1) or 8 (UTF-16 with a byte order mark). Decode it the wrong way and you get `ÿþ2 / 2`.
+- **You don't have to read the whole file.** `openSync` + `readSync` read just the 66 KB tag at the start of a 7 MB song, and `try / finally` makes sure the file is closed on every way out, even an early `return`.
