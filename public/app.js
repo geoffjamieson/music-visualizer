@@ -88,7 +88,7 @@ async function loadSongs() {
   songs.forEach((song, index) => {
     const item = document.createElement("li");
     const button = document.createElement("button");
-    button.textContent = song.title;
+    button.textContent = `${song.title} · ${song.artist} · ${song.album}`;
     button.addEventListener("click", () => playSong(index));
     item.append(button);
     playlist.append(item);
