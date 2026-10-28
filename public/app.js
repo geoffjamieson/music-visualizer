@@ -3,6 +3,7 @@ const libraryStatus = document.querySelector("#library-status");
 const settingsForm = document.querySelector("#settings-form");
 const musicDirInput = document.querySelector("#music-dir");
 const settingsError = document.querySelector("#settings-error");
+const currentlyPlaying = document.querySelector("#currently-playing");
 const player = document.querySelector("#player");
 const playlist = document.querySelector("#playlist");
 const previousBtn = document.querySelector("#prev");
@@ -60,12 +61,30 @@ function songUrl(song) {
   return "/music/" + song.path.split("/").map(encodeURIComponent).join("/");
 }
 
+/** Seconds as minutes:seconds (230.4 → '3:50'). */
+function formatTime(seconds) {
+  const minutes = Math.floor(seconds / 60);
+  const rest = Math.floor(seconds % 60);
+  return `${minutes}:${String(rest).padStart(2, "0")}`;
+}
+
+/** Show the current song as '4. Artist - Title', plus '(3:50)' once its length is known. */
+function showCurrentSong() {
+  const song = songs[currentIndex];
+  const time = Number.isFinite(player.duration)
+    ? ` (${formatTime(player.duration)})`
+    : "";
+  currentlyPlaying.textContent = `${currentIndex + 1}. ${song.artist} - ${song.title}${time}`;
+}
+
 /** Play the song at this position in the playlist (does nothing if there's no song there). */
 function playSong(index) {
   if (index < 0 || index >= songs.length) return;
 
   currentIndex = index;
   player.src = songUrl(songs[index]);
+  // After the new src, so duration is NaN again and the old song's time isn't shown.
+  showCurrentSong();
   player.play();
 
   // Bold only the song that's playing.
@@ -79,6 +98,7 @@ async function loadSongs() {
   songs = [];
   currentIndex = -1;
   playlist.replaceChildren();
+  currentlyPlaying.textContent = "";
 
   const response = await fetch("/api/songs");
   if (!response.ok) return;
@@ -94,6 +114,11 @@ async function loadSongs() {
     playlist.append(item);
   });
 }
+
+// The length arrives a moment after the song starts loading, so add it then.
+player.addEventListener("loadedmetadata", () => {
+  showCurrentSong();
+});
 
 // When a song finishes, play the next one (if there is one).
 player.addEventListener("ended", () => {
