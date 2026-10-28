@@ -24,7 +24,7 @@ Work in progress. The plan, in milestones:
    - ✅ Read title, artist, album and track from the files' ID3 tags, parsed by hand, with the folder names as a fallback (FLAC and M4A files have no ID3 tag)
    - ⬜ Small extras: shuffle and repeat
 4. **The visualizer.** Web Audio analysis driving bars, meters and readouts, with a look inspired by 2000s music gadgets (think Winamp with its Milkdrop visualizer). Optional: a Winamp-style 10-band EQ. Ideas are collected in [IDEAS.md](IDEAS.md).
-5. **Make it an app.** Wrap it in Electron: its own window, and a native folder picker for the music library.
+5. **Make it an app.** Wrap it in Electron: its own window, and a native folder picker for the music library. The folder will usually be a playlist (songs from many albums), so play it in the folder's own order (e.g. by file name) instead of re-sorting by artist, album and track.
 
 Later: a multiplayer game over hand-written WebSockets, at which point the server gets pulled out into its own small framework.
 
