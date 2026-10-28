@@ -33,6 +33,7 @@ Readouts from the Winamp main window, all driven by real data:
 - Scrolling title ticker (`4. Crusher-P - Echo (3:50)`)
 - Total time readouts (`0:00/27:45`, elapsed `02:12`)
 - Chunky bevelled buttons
+- Repeat button shows its mode as an icon (🔁 all, 🔂 one) instead of the `Repeat: all` text label
 
 ## EQ (optional, Milestone 4)
 
