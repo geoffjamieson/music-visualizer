@@ -8,6 +8,7 @@ const player = document.querySelector("#player");
 const playlist = document.querySelector("#playlist");
 const previousBtn = document.querySelector("#prev");
 const nextBtn = document.querySelector("#next");
+const repeatBtn = document.querySelector("#repeat");
 
 // ---- Settings ----
 
@@ -56,6 +57,12 @@ let songs = [];
 /** Index of the current song playing, or -1 if none. */
 let currentIndex = -1;
 
+/** The repeat modes, in the order the button cycles through them. */
+const REPEAT_MODES = ["off", "all", "one"];
+
+/** Repeat mode: off, all (loop the playlist) or one (loop the current song). */
+let repeatMode = REPEAT_MODES[0];
+
 /** '/music/' + the song's path, each part URL-encoded ('Two Weeks' → 'Two%20Weeks'). */
 function songUrl(song) {
   return "/music/" + song.path.split("/").map(encodeURIComponent).join("/");
@@ -77,8 +84,16 @@ function showCurrentSong() {
   currentlyPlaying.textContent = `${currentIndex + 1}. ${song.artist} - ${song.title}${time}`;
 }
 
-/** Play the song at this position in the playlist (does nothing if there's no song there). */
+/**
+ * Play the song at this position in the playlist. On repeat all, positions past either end
+ * wrap around; otherwise it does nothing if there's no song there.
+ */
 function playSong(index) {
+  // Adding songs.length first because JS's % keeps the minus sign: -1 % 47 is -1, not 46.
+  // The length check: x % 0 is NaN, which would slip past the guard below.
+  if (repeatMode === "all" && songs.length > 0) {
+    index = (index + songs.length) % songs.length;
+  }
   if (index < 0 || index >= songs.length) return;
 
   currentIndex = index;
@@ -131,6 +146,15 @@ previousBtn.addEventListener("click", () => {
 
 nextBtn.addEventListener("click", () => {
   playSong(currentIndex + 1);
+});
+
+repeatBtn.addEventListener("click", () => {
+  const index = REPEAT_MODES.indexOf(repeatMode);
+  const nextIndex = (index + 1) % REPEAT_MODES.length;
+  repeatMode = REPEAT_MODES[nextIndex];
+  repeatBtn.textContent = `Repeat: ${repeatMode}`;
+
+  player.loop = repeatMode === "one";
 });
 
 // ---- Start ----
