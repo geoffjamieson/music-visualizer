@@ -14,7 +14,7 @@ Work in progress. The plan, in milestones:
    - ✅ Live reload with Server-Sent Events
    - ✅ Stream files with `createReadStream` instead of reading them whole
    - ✅ `416 Range Not Satisfiable` for ranges past the end of a file
-3. **Music library.** In progress:
+3. **Music library.** ✅ Point it at a music folder and play through it.
    - ✅ Read request bodies, including requests that arrive in several pieces
    - ✅ Setup page: ask where the music folder is, save it to `config.json` (`MUSIC_DIR` as a developer override)
    - ✅ Stream songs from that folder, with the same path-safety check as `public/`
@@ -22,7 +22,7 @@ Work in progress. The plan, in milestones:
    - ✅ Refactor: a small hand-written router, with each route in its own file
    - ✅ A plain playlist page: one flat list sorted by artist, album and track; play, pause and seek with the browser's audio controls; previous, next, auto-advance and the current song in bold
    - ✅ Read title, artist, album and track from the files' ID3 tags, parsed by hand, with the folder names as a fallback (FLAC and M4A files have no ID3 tag)
-   - ⬜ Small extras: shuffle and repeat
+   - ✅ Small extras: shuffle (a scrambled play order, so each song plays once) and repeat (off, all or one)
 4. **The visualizer.** Web Audio analysis driving bars, meters and readouts, with a look inspired by 2000s music gadgets (think Winamp with its Milkdrop visualizer). Optional: a Winamp-style 10-band EQ. Ideas are collected in [IDEAS.md](IDEAS.md).
 5. **Make it an app.** Wrap it in Electron: its own window, and a native folder picker for the music library. The folder will usually be a playlist (songs from many albums), so play it in the folder's own order (e.g. by file name) instead of re-sorting by artist, album and track.
 
@@ -96,3 +96,4 @@ Anything else is served from `public/`.
 - **Bytes don't explain themselves.** The same byte can be a number, a letter or part of a size, depending on where it sits. A position (`pos + 4`) and the value at that position (`buf[pos + 4]`) are easy to mix up.
 - **Text needs an encoding.** `"2/2"` can be 3 bytes (latin1) or 8 (UTF-16 with a byte order mark). Decode it the wrong way and you get `ÿþ2 / 2`.
 - **You don't have to read the whole file.** `openSync` + `readSync` read just the 66 KB tag at the start of a 7 MB song, and `try / finally` makes sure the file is closed on every way out, even an early `return`.
+- **Shuffle isn't picking at random.** Random picks can repeat songs and leave Previous with nowhere to go. Scrambling a list of positions once, then walking through it, gives every song one turn, and the real `songs` list never moves.
