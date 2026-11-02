@@ -8,6 +8,7 @@ const player = document.querySelector("#player");
 const playlist = document.querySelector("#playlist");
 const previousBtn = document.querySelector("#prev");
 const nextBtn = document.querySelector("#next");
+const shuffleBtn = document.querySelector("#shuffle");
 const repeatBtn = document.querySelector("#repeat");
 
 // ---- Settings ----
@@ -63,6 +64,12 @@ const REPEAT_MODES = ["off", "all", "one"];
 /** Repeat mode: off, all (loop the playlist) or one (loop the current song). */
 let repeatMode = REPEAT_MODES[0];
 
+/** Whether songs play in a random order instead of playlist order. */
+let shuffleOn = false;
+
+/** The order songs play in: positions in `songs` (shuffled, it might be [3, 0, 4, 1, 2]). */
+let playOrder = [];
+
 /** '/music/' + the song's path, each part URL-encoded ('Two Weeks' → 'Two%20Weeks'). */
 function songUrl(song) {
   return "/music/" + song.path.split("/").map(encodeURIComponent).join("/");
@@ -84,18 +91,8 @@ function showCurrentSong() {
   currentlyPlaying.textContent = `${currentIndex + 1}. ${song.artist} - ${song.title}${time}`;
 }
 
-/**
- * Play the song at this position in the playlist. On repeat all, positions past either end
- * wrap around; otherwise it does nothing if there's no song there.
- */
+/** Play the song at this position in `songs`. */
 function playSong(index) {
-  // Adding songs.length first because JS's % keeps the minus sign: -1 % 47 is -1, not 46.
-  // The length check: x % 0 is NaN, which would slip past the guard below.
-  if (repeatMode === "all" && songs.length > 0) {
-    index = (index + songs.length) % songs.length;
-  }
-  if (index < 0 || index >= songs.length) return;
-
   currentIndex = index;
   player.src = songUrl(songs[index]);
   // After the new src, so duration is NaN again and the old song's time isn't shown.
@@ -108,9 +105,45 @@ function playSong(index) {
   buttons[index].setAttribute("aria-current", "true");
 }
 
+/** Scramble an array in place, with every order equally likely (Fisher-Yates). */
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const pick = Math.floor(Math.random() * (i + 1));
+    [array[i], array[pick]] = [array[pick], array[i]];
+  }
+}
+
+/** Rebuild playOrder: every position in order, then scrambled if shuffle is on. */
+function buildPlayOrder() {
+  playOrder = songs.map((song, index) => index);
+  if (shuffleOn) {
+    shuffle(playOrder);
+    // Start at the current song, so everything else is still to come.
+    const spot = playOrder.indexOf(currentIndex);
+    if (spot > 0)
+      [playOrder[0], playOrder[spot]] = [playOrder[spot], playOrder[0]];
+  }
+}
+
+/** Play the song one spot along in playOrder: direction is 1 for next, -1 for previous. */
+function skip(direction) {
+  const position = playOrder.indexOf(currentIndex);
+  let nextPosition = position + direction;
+
+  // Adding the length first because JS's % keeps the minus sign: -1 % 47 is -1, not 46.
+  // The length check: x % 0 is NaN, which would slip past the guard below.
+  if (repeatMode === "all" && playOrder.length > 0) {
+    nextPosition = (nextPosition + playOrder.length) % playOrder.length;
+  }
+
+  if (nextPosition < 0 || nextPosition >= playOrder.length) return;
+  playSong(playOrder[nextPosition]);
+}
+
 /** Fetch every song in the library and show it as a list. */
 async function loadSongs() {
   songs = [];
+  playOrder = [];
   currentIndex = -1;
   playlist.replaceChildren();
   currentlyPlaying.textContent = "";
@@ -119,6 +152,8 @@ async function loadSongs() {
   if (!response.ok) return;
 
   songs = await response.json();
+
+  buildPlayOrder();
 
   songs.forEach((song, index) => {
     const item = document.createElement("li");
@@ -137,15 +172,22 @@ player.addEventListener("loadedmetadata", () => {
 
 // When a song finishes, play the next one (if there is one).
 player.addEventListener("ended", () => {
-  playSong(currentIndex + 1);
+  skip(1);
 });
 
 previousBtn.addEventListener("click", () => {
-  playSong(currentIndex - 1);
+  skip(-1);
 });
 
 nextBtn.addEventListener("click", () => {
-  playSong(currentIndex + 1);
+  skip(1);
+});
+
+shuffleBtn.addEventListener("click", () => {
+  shuffleOn = !shuffleOn;
+  shuffleBtn.textContent = shuffleOn ? "Shuffle: on" : "Shuffle: off";
+
+  buildPlayOrder();
 });
 
 repeatBtn.addEventListener("click", () => {
