@@ -10,6 +10,7 @@ const previousBtn = document.querySelector("#prev");
 const nextBtn = document.querySelector("#next");
 const shuffleBtn = document.querySelector("#shuffle");
 const repeatBtn = document.querySelector("#repeat");
+const canvas = document.querySelector("#spectrum");
 
 // ---- Settings ----
 
@@ -198,6 +199,46 @@ repeatBtn.addEventListener("click", () => {
 
   player.loop = repeatMode === "one";
 });
+
+// ---- Visualizer ----
+/** The Web Audio world: every audio node is made by, and lives in, this context. */
+const audioContext = new AudioContext();
+
+// Browsers keep audio off until the user clicks something, and pressing play counts.
+player.addEventListener("play", () => {
+  audioContext.resume();
+});
+
+/** The <audio> element as the start of the graph: the sound flows out from here. */
+const source = audioContext.createMediaElementSource(player);
+
+/** Measures the sound passing through it, so we can draw it. */
+const analyser = audioContext.createAnalyser();
+
+source.connect(analyser);
+analyser.connect(audioContext.destination);
+
+/** One number per bin, 0 (silent) to 255 (loudest), refilled from the analyser. */
+const bins = new Uint8Array(analyser.frequencyBinCount);
+
+/** The 2D drawing tools for the canvas: rectangles, lines, colors. */
+const ctx = canvas.getContext("2d");
+
+/** Draw one frame, then ask the browser to call this again before the next screen refresh. */
+function draw() {
+  analyser.getByteFrequencyData(bins);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const barCount = 64;
+  const barWidth = canvas.width / barCount;
+
+  for (let i = 0; i < barCount; i++) {
+    // A bin can be 255 but the canvas is 200 tall, so scale 0–255 to 0–200.
+    const height = (bins[i] / 255) * canvas.height;
+    ctx.fillRect(i * barWidth, canvas.height - height, barWidth - 1, height);
+  }
+  requestAnimationFrame(draw);
+}
+draw();
 
 // ---- Start ----
 await loadSettings();
